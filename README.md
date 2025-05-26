@@ -44,19 +44,7 @@ mkdir exports samples
 
 ### Interfaz Gráfica (Recomendado)
 ```bash
-python gui_app.py
-```
-
-### Línea de Comandos
-```bash
-# Modo interactivo
-python main.py
-
-# Con archivo específico
-python main.py archivo.xlsx
-
-# Utilidades de base de datos
-python db_utils.py
+python src/main.py
 ```
 
 ## 📊 Estructura de Datos
@@ -150,23 +138,41 @@ Para futuras implementaciones de seguimiento.
 
 ```
 excel_to_sqlite/
-├── gui_app.py              # Aplicación con interfaz gráfica
-├── main.py                 # Script principal línea de comandos
-├── database_setup.py       # Configuración de base de datos
-├── excel_importer.py       # Lógica de importación (CLI)
-├── db_utils.py            # Utilidades de base de datos
-├── setup.py               # Script de instalación
-├── requirements.txt       # Dependencias
-├── README.md              # Este archivo
-├── facturacion.db         # Base de datos SQLite (se crea automáticamente)
-├── exports/               # Directorio para exportaciones
-└── samples/               # Directorio para archivos de muestra
+├── src/
+│   ├── __init__.py
+│   ├── main.py                 # Aplicación principal con interfaz gráfica
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py           # Configuración general y de base de datos
+│   │   ├── logging_config.py   # Configuración de logging
+│   │   └── tipos.py            # Definiciones de tipos (TypedDicts)
+│   ├── controllers/
+│   │   ├── __init__.py
+│   │   └── excel_controller.py # Controlador para la lógica de negocio
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── database.py         # Gestor de base de datos (SQLite)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── constants.py        # Constantes (mensajes, SQL, estilos)
+│   └── views/
+│       ├── __init__.py
+│       └── main_view.py        # Interfaz gráfica de usuario (CustomTkinter)
+├── .gitignore
+├── README.md                   # Este archivo
+├── requirements.txt            # Dependencias del proyecto
+├── setup.py                    # Script de instalación y configuración
+├── run_app.bat                 # Script para ejecutar en Windows
+├── logs/                       # Directorio para archivos de log (creado automáticamente)
+├── exports/                    # Directorio para exportaciones (creado por setup.py)
+└── samples/                    # Directorio para archivos de muestra (creado por setup.py)
+# Nota: facturacion.db se crea dentro de src/core/ por defecto, según config.py
 ```
 
 ## 🎨 Personalización
 
 ### Temas
-La aplicación soporta temas claro y oscuro automáticamente según la configuración del sistema. Para forzar un tema específico, modificar en `gui_app.py`:
+La aplicación soporta temas claro y oscuro automáticamente según la configuración del sistema. Para forzar un tema específico, modificar en `src/main.py`:
 
 ```python
 ctk.set_appearance_mode("dark")   # Tema oscuro
@@ -175,7 +181,7 @@ ctk.set_appearance_mode("system") # Automático (por defecto)
 ```
 
 ### Colores
-Para cambiar el esquema de colores, modificar:
+Para cambiar el esquema de colores, modificar en `src/main.py`:
 
 ```python
 ctk.set_default_color_theme("blue")    # Azul (por defecto)
@@ -192,7 +198,7 @@ ctk.set_default_color_theme("dark-blue") # Azul oscuro
 
 ### 2. Ejecutar Aplicación
 ```bash
-python gui_app.py
+python src/main.py
 ```
 
 ### 3. Importar Datos
@@ -275,16 +281,7 @@ python gui_app.py
 ## 🔧 Configuración Avanzada
 
 ### Base de Datos Personalizada
-```python
-# Cambiar ubicación de base de datos
-db_manager = DatabaseManager('mi_base_datos.db')
-```
-
-### Columnas Opcionales
-```python
-# Para agregar columnas opcionales, modificar en DatabaseManager:
-self.optional_columns = ['campo_extra1', 'campo_extra2']
-```
+Para cambiar la ubicación o nombre de la base de datos, modificar las entradas `name` y `DB_PATH` en `src/core/config.py`.
 
 ### Timeout de Conexión
 ```python
@@ -304,7 +301,7 @@ logging.basicConfig(level=logging.DEBUG)
 ### Testing
 ```python
 # Ejecutar con archivo de prueba
-python gui_app.py
+python src/main.py
 # Usar archivo en directorio samples/
 ```
 

@@ -1,2 +1,13 @@
 /venv
 /__pycache__
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+facturacion.db
+src/core/facturacion.db
+
+# Log files
+*.log
+logs/

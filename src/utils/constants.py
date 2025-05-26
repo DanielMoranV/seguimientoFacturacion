@@ -38,7 +38,7 @@ class SQLQueries:
             d.tot_doc, d.num_fac, d.fec_fac, d.num_pag, d.fec_pag, d.facturador,
             s.estado_aseguradora, s.fecha_envio, s.fecha_recepcion, s.observaciones, s.acciones
         FROM detalle_atenciones d
-        JOIN seguimiento_facturacion s ON d.id = s.detalle_atencion_id
+        LEFT JOIN seguimiento_facturacion s ON d.id = s.detalle_atencion_id
         WHERE d.nom_pac != 'No existe...'
     """
     
