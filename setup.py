@@ -47,9 +47,10 @@ def main():
     print("\n" + "=" * 50)
     print("🎉 Configuración completada!")
     print("\nPara ejecutar la aplicación:")
-    print("  python gui_app.py")
-    print("\nPara usar la versión de línea de comandos:")
-    print("  python main.py archivo.xlsx")
+    print("  python src/main.py")
+    # Remove the lines about command-line version for now, 
+    # as the current src/main.py is GUI only.
+    # If CLI is re-added later, this can be updated.
 
 if __name__ == "__main__":
     main()

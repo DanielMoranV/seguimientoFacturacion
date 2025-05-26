@@ -2,28 +2,22 @@ import customtkinter as ctk
 import logging
 from pathlib import Path
 
+from src.core.config import get_config
+from src.core.logging_config import setup_logging
 from src.models.database import DatabaseManager
 from src.controllers.excel_controller import ExcelController
 from src.views.main_view import MainView
 from src.utils.constants import Messages
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('seguimiento.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger('facturacion')
-
 # Configuración de la aplicación
 def setup_app():
     """Configurar y ejecutar la aplicación"""
     try:
+        CONFIG = get_config()
+        logger = setup_logging() # Use the centralized logging
+
         # Inicializar el gestor de base de datos
-        db_manager = DatabaseManager(Path('facturacion.db'))
+        db_manager = DatabaseManager(config=CONFIG, logger=logger)
         
         # Inicializar el controlador
         controller = ExcelController(db_manager)

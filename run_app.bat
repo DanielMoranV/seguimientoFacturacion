@@ -30,7 +30,7 @@ echo Iniciando aplicación...
 echo.
 
 REM Ejecutar la aplicación
-python main.py
+python src/main.py
 
 if errorlevel 1 (
     echo.
