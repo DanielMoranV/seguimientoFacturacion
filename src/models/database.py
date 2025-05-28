@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Tuple, Any, Dict, List
 import pandas as pd
 from datetime import datetime
+import os
+import subprocess
 
 from src.utils.constants import Messages, SQLQueries, ExcelStyles
 
@@ -19,7 +21,7 @@ except ImportError:
 class DatabaseManager:
     _instance = None
     
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
         return cls._instance
@@ -68,11 +70,11 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS seguimiento_facturacion (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 detalle_atencion_id INTEGER NOT NULL,
-                estado_aseguradora VARCHAR(255) NOT NULL,
-                fecha_envio DATE NOT NULL,
-                fecha_recepcion DATE NOT NULL,
-                observaciones TEXT NOT NULL,
-                acciones VARCHAR(255) NOT NULL,
+                estado_aseguradora VARCHAR(255) NULL,
+                fecha_envio DATE NULL,
+                fecha_recepcion DATE NULL,
+                observaciones TEXT NULL,
+                acciones VARCHAR(255) NULL,
                 FOREIGN KEY (detalle_atencion_id) REFERENCES detalle_atenciones (id)
                     ON DELETE CASCADE
             )
@@ -205,6 +207,12 @@ class DatabaseManager:
                 
                 worksheet.auto_filter.ref = worksheet.dimensions
                 worksheet.freeze_panes = 'A2'
+            
+            # Abrir el archivo Excel después de exportarlo
+            try:
+                os.startfile(export_path)
+            except Exception as e_open:
+                self.logger.warning(f"No se pudo abrir el archivo Excel: {str(e_open)}")
             
             return True, Messages.SUCCESS_EXPORT.format(str(export_path))
             

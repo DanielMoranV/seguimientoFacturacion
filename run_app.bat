@@ -29,8 +29,11 @@ if errorlevel 1 (
 echo Iniciando aplicación...
 echo.
 
-REM Ejecutar la aplicación
-python src/main.py
+@REM REM Limpiar la base de datos antes de iniciar
+@REM python -c "from src.models.database import DatabaseManager; import logging; logging.basicConfig(level=logging.INFO); db = DatabaseManager({"paths": {"db_path": 'facturacion.db'}}, logging.getLogger()); db.clear_database_tables()"
+
+REM Ejecutar la aplicación desde el directorio raíz
+python -m src.main
 
 if errorlevel 1 (
     echo.
