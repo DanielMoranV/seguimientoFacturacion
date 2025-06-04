@@ -1,7 +1,7 @@
 @echo off
 echo.
 echo ========================================
-echo  Excel to SQLite Importer
+echo  Seguimiento de Facturación
 echo ========================================
 echo.
 

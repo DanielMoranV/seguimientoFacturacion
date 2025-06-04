@@ -6,7 +6,7 @@ from datetime import datetime
 def setup_logging():
     """Configurar el sistema de logging"""
     # Crear directorio para logs si no existe
-    logs_dir = Path(__file__).parent / 'logs'
+    logs_dir = Path(__file__).parent.parent.parent / 'logs'
     logs_dir.mkdir(exist_ok=True)
     
     # Configurar el logger

@@ -24,7 +24,7 @@ DB_CONFIG = {
 # Configuración de la interfaz
 UI_CONFIG = {
     'window': {
-        'title': 'Excel to SQLite Importer',
+        'title': 'Seguimiento de Facturación',
         'size': '800x700',
         'min_size': '600x500'
     },

@@ -1,6 +1,6 @@
-# Excel to SQLite Importer 🚀
+# Seguimiento de Facturación 🚀
 
-Una aplicación moderna con interfaz gráfica para importar datos desde archivos Excel a una base de datos SQLite, con validaciones, animaciones de carga y manejo inteligente de duplicados.
+Una aplicación moderna con interfaz gráfica para importar datos de facturación desde archivos Excel a una base de datos SQLite, gestionar el seguimiento de pagos, actualizar estados de facturación, exportar datos consolidados y mantener un control eficiente de los registros con validaciones, animaciones de carga y manejo inteligente de duplicados.
 
 ## ✨ Características
 
@@ -12,25 +12,27 @@ Una aplicación moderna con interfaz gráfica para importar datos desde archivos
 - **Estadísticas en Vivo**: Contador de registros en la base de datos
 - **Manejo de Errores**: Validaciones robustas con mensajes informativos
 - **Multiplataforma**: Compatible con Windows, macOS y Linux
+- **Seguimiento de Facturación**: Actualización y gestión de estados de facturación
+- **Exportación de Datos**: Exportación a Excel con formato personalizado
+- **Actualización Automática**: Detección de pagos y actualización de estados
 
-## 🛠️ Instalación
+## 🔧 Instalación
 
-### Opción 1: Instalación Automática
+### Requisitos previos
+- Python 3.8 o superior
+- Pip (gestor de paquetes de Python)
+
+### Instalación
 ```bash
-# Clonar o descargar los archivos
-cd excel_to_sqlite
+# 1. Clonar o descargar los archivos
+git clone https://github.com/usuario/seguimientoFacturacion.git
+cd seguimientoFacturacion
 
-# Ejecutar script de configuración
-python setup.py
-```
-
-### Opción 2: Instalación Manual
-```bash
-# Instalar dependencias
+# 2. Instalar dependencias
 pip install -r requirements.txt
 
-# Crear directorios opcionales
-mkdir exports samples
+# 3. Crear directorios necesarios (si no existen)
+mkdir -p logs exports
 ```
 
 ## 📋 Dependencias
@@ -42,9 +44,13 @@ mkdir exports samples
 
 ## 🚀 Uso
 
-### Interfaz Gráfica (Recomendado)
+### Ejecutar la aplicación
 ```bash
+# Desde la raíz del proyecto
 python src/main.py
+
+# En Windows, también puede usar
+run_app.bat
 ```
 
 ## 📊 Estructura de Datos
@@ -70,7 +76,14 @@ Campos requeridos en el Excel:
 - `producto` - Producto
 
 ### Tabla: `seguimiento_facturacion`
-Para futuras implementaciones de seguimiento.
+Campos en la tabla de seguimiento:
+- `id` - Identificador único
+- `detalle_atencion_id` - ID de referencia a detalle_atenciones
+- `estado_aseguradora` - Estado actual con la aseguradora
+- `fecha_envio` - Fecha de envío a la aseguradora
+- `fecha_recepcion` - Fecha de recepción del pago
+- `observaciones` - Notas y observaciones adicionales
+- `acciones` - Acciones realizadas o pendientes
 
 ## 🎯 Funcionalidades de la Interfaz
 
@@ -79,6 +92,8 @@ Para futuras implementaciones de seguimiento.
 - **Validación Automática**: Verificación en tiempo real de la estructura
 - **Barra de Progreso**: Indicador visual del proceso de importación
 - **Estadísticas**: Contador en vivo de registros en la base de datos
+- **Actualización de Seguimiento**: Importación de datos de seguimiento desde Excel
+- **Exportación de Datos**: Exportación de datos a Excel con formato personalizado
 
 ### Controles Inteligentes
 - **Deshabilitación Automática**: Los botones se deshabilitan durante el procesamiento
@@ -89,6 +104,8 @@ Para futuras implementaciones de seguimiento.
 - **Importación Inteligente**: Inserta nuevos registros y actualiza existentes
 - **Limpieza de Datos**: Conversión automática de tipos y manejo de valores nulos
 - **Limpieza de Base de Datos**: Opción para eliminar todos los registros
+- **Seguimiento de Facturación**: Actualización de estados y fechas de seguimiento
+- **Detección de Pagos**: Actualización automática a estado 'Pagado' cuando se detecta información de pago
 
 ## 🔧 Características Técnicas
 
@@ -137,7 +154,7 @@ Para futuras implementaciones de seguimiento.
 ## 📁 Estructura del Proyecto
 
 ```
-excel_to_sqlite/
+seguimientoFacturacion/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Aplicación principal con interfaz gráfica
@@ -145,7 +162,7 @@ excel_to_sqlite/
 │   │   ├── __init__.py
 │   │   ├── config.py           # Configuración general y de base de datos
 │   │   ├── logging_config.py   # Configuración de logging
-│   │   └── tipos.py            # Definiciones de tipos (TypedDicts)
+│   │   └── facturacion.db      # Base de datos SQLite (creada automáticamente)
 │   ├── controllers/
 │   │   ├── __init__.py
 │   │   └── excel_controller.py # Controlador para la lógica de negocio
@@ -166,24 +183,25 @@ excel_to_sqlite/
 ├── logs/                       # Directorio para archivos de log (creado automáticamente)
 ├── exports/                    # Directorio para exportaciones (creado por setup.py)
 └── samples/                    # Directorio para archivos de muestra (creado por setup.py)
-# Nota: facturacion.db se crea dentro de src/core/ por defecto, según config.py
 ```
 
 ## 🎨 Personalización
 
 ### Temas
-La aplicación soporta temas claro y oscuro automáticamente según la configuración del sistema. Para forzar un tema específico, modificar en `src/main.py`:
+La aplicación soporta temas claro y oscuro automáticamente según la configuración del sistema. Para forzar un tema específico, modificar en `src/main.py` dentro de la función `setup_app()`:
 
 ```python
+# Configurar la interfaz
 ctk.set_appearance_mode("dark")   # Tema oscuro
 ctk.set_appearance_mode("light")  # Tema claro
 ctk.set_appearance_mode("system") # Automático (por defecto)
 ```
 
 ### Colores
-Para cambiar el esquema de colores, modificar en `src/main.py`:
+Para cambiar el esquema de colores, modificar en `src/main.py` dentro de la función `setup_app()`:
 
 ```python
+# Configurar la interfaz
 ctk.set_default_color_theme("blue")    # Azul (por defecto)
 ctk.set_default_color_theme("green")   # Verde
 ctk.set_default_color_theme("dark-blue") # Azul oscuro
@@ -191,28 +209,40 @@ ctk.set_default_color_theme("dark-blue") # Azul oscuro
 
 ## 🔄 Flujo de Trabajo
 
-### 1. Preparar Archivo Excel
-- Asegurar que contenga todas las columnas requeridas
-- Verificar que los datos estén en el formato correcto
-- Cerrar el archivo si está abierto en Excel
+### 1. Preparar Archivos Excel
+- **Archivo Principal**: Contiene los datos de facturación con todas las columnas requeridas
+- **Archivo de Seguimiento**: Contiene actualizaciones de estado, fechas y observaciones
+- Asegurar que los archivos estén cerrados en Excel antes de importarlos
 
-### 2. Ejecutar Aplicación
+### 2. Ejecutar la Aplicación
 ```bash
 python src/main.py
 ```
 
-### 3. Importar Datos
-1. Hacer clic en "📁 Seleccionar Archivo Excel"
+### 3. Importar Datos Principales
+1. Hacer clic en "📁 Seleccionar Archivo Principal"
 2. Elegir el archivo desde el explorador
-3. Esperar la validación automática
-4. Hacer clic en "🚀 Importar Datos"
-5. Observar el progreso en la barra de carga
-6. Revisar el resumen de resultados
+3. Hacer clic en "🚀 Importar Datos"
+4. Observar el progreso en la barra de carga
+5. Revisar el resumen de resultados (nuevos registros, actualizados, errores)
 
-### 4. Verificar Resultados
-- El contador de registros se actualiza automáticamente
-- Revisar mensajes de éxito o error
-- Usar las utilidades de base de datos si es necesario
+### 4. Actualizar Seguimiento
+1. Hacer clic en "📊 Actualizar Seguimiento"
+2. Elegir el archivo Excel con datos de seguimiento
+3. El sistema procesará automáticamente las actualizaciones
+4. Observar el progreso en la barra de carga
+5. Revisar el resumen de resultados (actualizaciones, nuevos seguimientos)
+
+### 5. Exportar Datos Consolidados
+1. Hacer clic en "📤 Exportar Datos"
+2. Elegir la ubicación para guardar el archivo Excel
+3. El sistema exportará todos los datos con formato mejorado
+4. Revisar el archivo exportado con los datos consolidados
+
+### 6. Mantenimiento (Opcional)
+- El contador de registros muestra el total actual en la base de datos
+- Para limpiar la base de datos, usar el botón "🗑️ Limpiar Base de Datos"
+- Confirmar la acción cuando se solicite (esta acción no se puede deshacer)
 
 ## 🧪 Casos de Uso
 
@@ -327,6 +357,9 @@ Los errores se muestran en:
 - [ ] Validaciones de negocio personalizables
 - [ ] Interfaz web opcional
 - [ ] Soporte para múltiples bases de datos
+- [ ] Filtros avanzados para búsqueda de registros
+- [ ] Gráficos y reportes estadísticos
+- [ ] Notificaciones automáticas para seguimiento
 
 ## 📝 Licencia
 
