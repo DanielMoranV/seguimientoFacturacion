@@ -3,10 +3,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import threading
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING
-import os # Required for os.path.basename
+from typing import Callable, Optional, Tuple, Dict, Any, List, TYPE_CHECKING
 
-from src.utils.constants import Messages # Assuming Messages might still be useful for some default texts
+import os
+
+from src.utils.constants import Messages
 
 if TYPE_CHECKING:
     from src.controllers.excel_controller import ExcelController
@@ -18,8 +19,6 @@ class MainView:
         self.controller = controller
         self.selected_primary_file = None
         self.selected_seguimiento_file = None
-        # self.progress_queue = queue.Queue() # Removed as per instruction
-        # self.progress_thread = None # Removed as per instruction
 
         self.setup_ui()
         self.update_stats_display()
@@ -38,7 +37,7 @@ class MainView:
         # Title Label
         self.title_label = ctk.CTkLabel(
             self.main_frame, 
-            text="Importador de Excel a SQLite", # Hardcoded as in ModernExcelImporter
+            text="Seguimiento de Facturación", # Actualizado para coincidir con el título de la aplicación
             font=ctk.CTkFont(size=28, weight="bold")
         )
         self.title_label.pack(pady=(30, 10))
@@ -46,7 +45,7 @@ class MainView:
         # Subtitle Label
         self.subtitle_label = ctk.CTkLabel(
             self.main_frame,
-            text="Selecciona un archivo Excel para importar datos a la base de datos", # Hardcoded
+            text="Importación, seguimiento y exportación de datos de facturación", # Actualizado para reflejar todas las funcionalidades
             font=ctk.CTkFont(size=14),
             text_color="gray"
         )
@@ -68,9 +67,9 @@ class MainView:
 
         self.primary_file_label = ctk.CTkLabel(
             self.file_frame,
-            text="Ningún archivo principal seleccionado",
-            font=ctk.CTkFont(size=12), # Added font for consistency
-            text_color="gray" # Added text_color for consistency
+            text=Messages.LABEL_NO_FILE,
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
         )
         self.primary_file_label.pack(pady=(0, 10))
 
@@ -85,8 +84,8 @@ class MainView:
 
         self.progress_status_label = ctk.CTkLabel(
             self.progress_frame,
-            text="Esperando archivo...",
-            font=ctk.CTkFont(size=12) # Added font
+            text=Messages.WAITING_FILE,
+            font=ctk.CTkFont(size=12)
         )
         self.progress_status_label.pack(pady=(0, 20))
 
@@ -153,23 +152,23 @@ class MainView:
 
     def select_primary_file_dialog(self):
         file_path = filedialog.askopenfilename(
-            title="Seleccionar Archivo Excel Principal",
+            title=Messages.DIALOG_SELECT_FILE,
             filetypes=[("Archivos Excel", "*.xlsx *.xls"), ("Todos los archivos", "*.*")]
         )
         if file_path:
             self.selected_primary_file = file_path
             self.primary_file_label.configure(text=f"📄 {os.path.basename(file_path)}")
             self.import_primary_button.configure(state="normal")
-            self.progress_status_label.configure(text=f"Archivo seleccionado: {os.path.basename(file_path)}")
+            self.progress_status_label.configure(text=Messages.LABEL_FILE_SELECTED.format(os.path.basename(file_path)))
 
 
     def start_primary_import(self):
         if not self.selected_primary_file:
-            messagebox.showerror("Error", "Por favor, seleccione un archivo principal primero.")
+            messagebox.showerror(Messages.DIALOG_ERROR, Messages.ERROR_FILE_SELECTION)
             return
         
         self._disable_buttons()
-        self.progress_status_label.configure(text="Iniciando importación de datos principales...")
+        self.progress_status_label.configure(text=Messages.IMPORTING_DATA)
         self._start_task(
             lambda: self.controller.handle_primary_excel_import(Path(self.selected_primary_file), self._ui_progress_callback),
             "import_complete"
@@ -177,7 +176,7 @@ class MainView:
 
     def start_seguimiento_update(self):
         file_path = filedialog.askopenfilename(
-            title="Seleccionar archivo Excel de seguimiento",
+            title=Messages.DIALOG_SELECT_SEGUIMIENTO,
             filetypes=[("Archivos Excel", "*.xlsx *.xls"), ("Todos los archivos", "*.*")]
         )
         if not file_path:
@@ -186,7 +185,7 @@ class MainView:
         self.selected_seguimiento_file = file_path
         self._disable_buttons()
         # Update label to show selected seguimiento file
-        self.progress_status_label.configure(text=f"Actualizando con: {os.path.basename(file_path)}...")
+        self.progress_status_label.configure(text=Messages.UPDATING_DATA.format(os.path.basename(file_path)))
         self._start_task(
             lambda: self.controller.handle_seguimiento_update_from_excel(Path(self.selected_seguimiento_file), self._ui_progress_callback),
             "seguimiento_complete"
@@ -194,7 +193,7 @@ class MainView:
 
     def export_data(self):
         export_path = filedialog.asksaveasfilename(
-            title="Guardar archivo Excel",
+            title=Messages.DIALOG_SAVE_FILE,
             defaultextension=".xlsx",
             filetypes=[("Archivos Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
         )
@@ -202,30 +201,31 @@ class MainView:
             return
             
         self._disable_buttons()
-        self.progress_status_label.configure(text="Exportando datos...")
+        self.progress_status_label.configure(text=Messages.EXPORTING_DATA)
         self._start_task(
             lambda: self.controller.handle_excel_export(Path(export_path)),
             "export_complete"
         )
 
     def confirm_clear_database(self):
-        if messagebox.askyesno("Confirmar", 
-                               "¿Está seguro de eliminar todos los datos de la base de datos?\nEsta acción no se puede deshacer.",
-                               icon='warning'): # Added icon for better UX
+        if messagebox.askyesno(Messages.DIALOG_CONFIRM, 
+                               Messages.CONFIRM_CLEAR_DB,
+                               icon='warning'):
             self._disable_buttons()
-            self.progress_status_label.configure(text="Limpiando base de datos...")
+            self.progress_status_label.configure(text=Messages.CLEANING_DB)
             self._start_task(
                 lambda: self.controller.handle_clear_database(),
                 "clear_complete"
             )
 
     def update_stats_display(self):
+        """Actualiza el contador de registros en la interfaz"""
         try:
             count = self.controller.handle_get_stats()
-            self.stats_label.configure(text=f"📊 Registros en base de datos: {count:,}")
+            self.stats_label.configure(text=Messages.LABEL_STATS.format(count))
         except Exception as e:
-            # Log the error if a logger is available, e.g., self.controller.logger.error(...)
-            self.stats_label.configure(text="📊 Error al obtener estadísticas")
+            self.controller.logger.error(f"Error al obtener estadísticas: {str(e)}")
+            self.stats_label.configure(text=Messages.ERROR_STATS)
 
     def _ui_progress_callback(self, progress_percentage: float, message: str = ""):
         self.progress_bar.set(progress_percentage / 100.0)
@@ -234,18 +234,19 @@ class MainView:
         self.root.update_idletasks()
 
     def _start_task(self, task_callable: Callable, completion_event_type: str):
+        """Ejecuta una tarea en un hilo separado para mantener la UI responsiva"""
         # Disable buttons before starting the task
         self._disable_buttons()
 
         def worker():
-            success = False # Initialize success
-            message_or_result = "Tarea fallida por defecto" # Default message
+            success = False
+            message_or_result = "Tarea fallida por defecto"
             try:
                 success, message_or_result = task_callable()
             except Exception as e:
-                # Log the exception e.g. self.controller.logger.error(f"Error in task {completion_event_type}: {e}")
-                message_or_result = f"Error inesperado: {str(e)}"
-                success = False # Ensure success is false on exception
+                self.controller.logger.error(f"Error en tarea {completion_event_type}: {str(e)}")
+                message_or_result = Messages.ERROR_UNEXPECTED.format(str(e))
+                success = False
             finally:
                 # Schedule _handle_task_completion to run in the main thread
                 self.root.after(0, self._handle_task_completion, completion_event_type, success, message_or_result)
@@ -259,9 +260,9 @@ class MainView:
         self.progress_status_label.configure(text=result_message)
 
         if success:
-            messagebox.showinfo("Éxito", f"{event_type.replace('_', ' ').capitalize()}: {result_message}")
+            messagebox.showinfo(Messages.DIALOG_SUCCESS, f"{event_type.replace('_', ' ').capitalize()}: {result_message}")
         else:
-            messagebox.showerror("Error", f"{event_type.replace('_', ' ').capitalize()}: {result_message}")
+            messagebox.showerror(Messages.DIALOG_ERROR, f"{event_type.replace('_', ' ').capitalize()}: {result_message}")
         
         self._enable_buttons() # Re-enable buttons
         self.update_stats_display()
@@ -271,8 +272,8 @@ class MainView:
 
     def reset_progress_ui(self):
         self.progress_bar.set(0)
-        self.progress_status_label.configure(text="Esperando archivo...")
-        self.primary_file_label.configure(text="Ningún archivo principal seleccionado")
+        self.progress_status_label.configure(text=Messages.WAITING_FILE)
+        self.primary_file_label.configure(text=Messages.LABEL_NO_FILE)
         self.selected_primary_file = None
         self.selected_seguimiento_file = None # Reset seguimiento file as well
         self.import_primary_button.configure(state="disabled")

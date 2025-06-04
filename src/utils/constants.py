@@ -9,6 +9,9 @@ class Messages:
     ERROR_UPDATE = "Error general: {}"
     ERROR_PAYMENT = "Error al actualizar estados de pago: {}"
     ERROR_OPENPYXL = "openpyxl no está instalado. El formato Excel estará limitado."
+    ERROR_FILE_SELECTION = "Por favor, seleccione un archivo principal primero."
+    ERROR_STATS = "Error al obtener estadísticas"
+    ERROR_UNEXPECTED = "Error inesperado: {}"
     
     # Mensajes de éxito
     SUCCESS_EXPORT = "Archivo exportado con éxito: {}"
@@ -21,13 +24,37 @@ class Messages:
     
     # Mensajes de progreso
     PROCESSING_DOC = "Procesando seguimiento: {}"
+    WAITING_FILE = "Esperando archivo..."
+    EXPORTING_DATA = "Exportando datos..."
+    CLEANING_DB = "Limpiando base de datos..."
+    IMPORTING_DATA = "Iniciando importación de datos principales..."
+    UPDATING_DATA = "Actualizando con: {}"
     
-    # Estado de pago
+    # Mensajes de confirmación
+    CONFIRM_CLEAR_DB = "¿Está seguro de eliminar todos los datos de la base de datos?\nEsta acción no se puede deshacer."
+    
+    # Títulos de diálogos
+    DIALOG_CONFIRM = "Confirmar"
+    DIALOG_SUCCESS = "Éxito"
+    DIALOG_ERROR = "Error"
+    DIALOG_SELECT_FILE = "Seleccionar Archivo Excel Principal"
+    DIALOG_SELECT_SEGUIMIENTO = "Seleccionar archivo Excel de seguimiento"
+    DIALOG_SAVE_FILE = "Guardar archivo Excel"
+    
+    # Etiquetas de UI
+    LABEL_NO_FILE = "Ningún archivo principal seleccionado"
+    LABEL_FILE_SELECTED = "Archivo seleccionado: {}"
+    LABEL_STATS = "📊 Registros en base de datos: {}"
+    
+    # Estados
     PAID_STATUS = "Pagado"
+    ZERO_NEGATIVE_STATUS = "Cero o Negativo"
     
     # Observaciones y acciones por defecto
     DEFAULT_OBSERVATION = "Estado actualizado automáticamente - Factura pagada"
     DEFAULT_ACTION = "Pago procesado"
+    ZERO_NEGATIVE_OBSERVATION = "Estado actualizado automáticamente - Monto cero o negativo"
+    ZERO_NEGATIVE_ACTION = "Verificar monto"
 
 @dataclass
 class SQLQueries:
@@ -54,6 +81,13 @@ class SQLQueries:
         WHERE num_pag IS NOT NULL 
         AND num_pag != '' 
         AND num_pag != 'nan'
+    """
+    
+    # Consulta para montos cero o negativos
+    SELECT_ZERO_NEGATIVE = """
+        SELECT id, num_doc, tot_doc 
+        FROM detalle_atenciones 
+        WHERE tot_doc <= 0
     """
 
 @dataclass

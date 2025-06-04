@@ -263,22 +263,12 @@ class DatabaseManager:
             ({', '.join(self.required_columns)})
             VALUES ({', '.join(['?'] * len(self.required_columns))})
         '''
-        cursor.execute(query, tuple(row))
+        values = tuple(row[col] for col in self.required_columns)
+        cursor.execute(query, values)
 
     def update_record(self, cursor: sqlite3.Cursor, row: pd.Series, record_id: int):
-        """Actualizar registro solo si no está marcado como 'Pagado' en seguimiento"""
-        cursor.execute(SQLQueries.SELECT_CURRENT_STATUS, (record_id,)) # This query was on seguimiento, need to adapt
-        # This logic needs to be re-evaluated as record_id is for detalle_atenciones
-        # For now, let's assume we always update if found
-        
-        # query = f'''
-        #     UPDATE detalle_atenciones 
-        #     SET {', '.join([f'{col}=?' for col in self.required_columns if col != 'num_doc'])}
-        #     WHERE id=?
-        # '''
-        # values = tuple(row[col] for col in self.required_columns if col != 'num_doc') + (record_id,)
-        
-        # Simplified update, num_doc is unique and should not change for an existing record_id
+        """Actualizar registro en la tabla detalle_atenciones"""
+        # Excluimos num_doc ya que es el identificador único y no debe cambiar
         update_cols = [col for col in self.required_columns if col != 'num_doc']
         query = f'''
             UPDATE detalle_atenciones 
@@ -344,6 +334,9 @@ class DatabaseManager:
 
             # Actualizar estados de pago después de importar
             payment_success, payment_result = self.update_payment_status()
+        
+            # Actualizar estados de facturas con monto cero o negativo
+            zero_neg_success, zero_neg_result = self.update_zero_negative_status()
 
             summary = f"Insertados: {inserted}, Actualizados: {updated}, Errores: {errors}"
 
@@ -351,6 +344,11 @@ class DatabaseManager:
                 summary += f"\n{payment_result}"
             else:
                 summary += f"\nError al actualizar estados de pago: {payment_result}"
+            
+            if zero_neg_success:
+                summary += f"\n{zero_neg_result}"
+            else:
+                summary += f"\n{zero_neg_result}"
 
             return True, summary
             
@@ -361,59 +359,77 @@ class DatabaseManager:
     def update_seguimiento_from_excel(self, file_path: str, progress_callback: callable) -> Tuple[bool, str]:
         """
         Actualizar seguimiento desde archivo Excel
+        
+        Esta función procesa un archivo Excel con información de seguimiento de facturas y actualiza
+        la base de datos. Respeta el estado 'Pagado' de registros existentes y valida datos antes de
+        actualizar.
+        
+        Args:
+            file_path (str): Ruta al archivo Excel con datos de seguimiento
+            progress_callback (callable): Función para reportar progreso de la operación
+            
+        Returns:
+            Tuple[bool, str]: (Éxito/Fallo, Mensaje descriptivo)
         """
         try:
             self.logger.info(f"Iniciando actualización de seguimiento desde Excel: {file_path}")
             
-            # Leer Excel con nombres de columnas amigables
-            # The dtype mapping here should use the friendly names from the Excel file
+            # Leer Excel con nombres de columnas amigables para el usuario final
+            # Se especifican tipos de datos para columnas críticas para evitar conversiones automáticas incorrectas
             df = pd.read_excel(file_path, dtype={'Número de Documento': str, 'Historia Clínica': str})
             
-            # Mapear nombres amigables a nombres de BD usando configuración
-            # seguimiento_columns in config is {'Friendly Name': 'db_column_name'}
-            
-            # Verificar columnas requeridas (using friendly names)
+            # Verificar que todas las columnas requeridas estén presentes en el archivo
+            # Usando los nombres amigables definidos en la configuración
             missing_columns = [col for col in self.seguimiento_columns.keys() if col not in df.columns]
             if missing_columns:
                 return False, Messages.MISSING_COLUMNS.format(', '.join(missing_columns))
             
-            # Select and rename columns to DB names
+            # Seleccionar solo las columnas necesarias y renombrarlas a los nombres de la base de datos
             df_to_process = df[list(self.seguimiento_columns.keys())].copy()
             df_to_process.rename(columns=self.seguimiento_columns, inplace=True)
 
-            df_clean = df_to_process.fillna('') # Fill NA after renaming
+            # Limpiar datos: convertir NaN a cadenas vacías para evitar problemas con SQLite
+            df_clean = df_to_process.fillna('') 
             
-            # Convertir fechas (using DB names)
+            # Convertir y formatear columnas de fecha al formato estándar YYYY-MM-DD
             date_columns_db = ['fecha_envio', 'fecha_recepcion']
             for col in date_columns_db:
                 if col in df_clean.columns:
                     try:
                         df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce').dt.strftime('%Y-%m-%d')
-                        df_clean[col] = df_clean[col].fillna('') # Ensure NAs are empty strings post-conversion
+                        df_clean[col] = df_clean[col].fillna('') # Asegurar que NAs se conviertan a cadenas vacías
                     except Exception:
                          df_clean[col] = ''
             
+            # Verificar que haya datos para procesar
             total_rows = len(df_clean)
             if total_rows == 0:
                 return False, Messages.NO_DATA
             
+            # Conectar a la base de datos y preparar para procesamiento
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Contadores para el resumen final
             updated_count = 0
             inserted_count = 0
             errors_count = 0
+            skipped_paid_count = 0  # Nuevo contador para registros pagados que se omiten
             
             for index, row in df_clean.iterrows():
                 try:
-                    num_doc = str(row['num_doc']).strip() # num_doc is now a DB column name
+                    # Obtener y validar número de documento
+                    num_doc = str(row['num_doc']).strip()
                     if not num_doc:
                         errors_count += 1
+                        self.logger.warning("Número de documento vacío, omitiendo registro")
                         continue
                     
+                    # Buscar el registro correspondiente en detalle_atenciones
                     cursor.execute(SQLQueries.SELECT_BY_DOC, (num_doc,))
                     detalle_record = cursor.fetchone()
                     
+                    # Si no existe el registro en detalle_atenciones, no se puede actualizar
                     if not detalle_record:
                         errors_count += 1
                         self.logger.warning(f"No se encontró detalle_atencion para num_doc: {num_doc}")
@@ -421,17 +437,32 @@ class DatabaseManager:
                     
                     detalle_id = detalle_record[0]
                     
-                    cursor.execute(SQLQueries.SELECT_BY_ID, (detalle_id,)) # Query for seguimiento_facturacion by detalle_id
+                    # Verificar si ya existe un registro de seguimiento para este documento
+                    cursor.execute(SQLQueries.SELECT_BY_ID, (detalle_id,))
                     seguimiento_record = cursor.fetchone()
                     
-                    # Prepare data for SQL (all are DB column names now)
-                    # Ensure all fields from seguimiento_columns (DB version) are present in row
+                    # Si existe un registro de seguimiento, verificar si ya está marcado como pagado
+                    if seguimiento_record:
+                        seguimiento_id = seguimiento_record[0]
+                        
+                        # Verificar el estado actual del registro
+                        cursor.execute(SQLQueries.SELECT_CURRENT_STATUS, (seguimiento_id,))
+                        current_status_result = cursor.fetchone()
+                        
+                        # Si el registro ya está marcado como pagado, no modificarlo
+                        if current_status_result and current_status_result[0].strip().lower() == Messages.PAID_STATUS.lower():
+                            self.logger.info(f"Omitiendo actualización de registro ya pagado: {num_doc}")
+                            skipped_paid_count += 1
+                            continue
+                    
+                    # Preparar datos para SQL, asegurando que todos los campos estén correctamente formateados
                     estado = str(row['estado_aseguradora']).strip()
                     fecha_envio_val = str(row['fecha_envio']).strip() if row['fecha_envio'] else None
                     fecha_recepcion_val = str(row['fecha_recepcion']).strip() if row['fecha_recepcion'] else None
                     observaciones_val = str(row['observaciones']).strip()
                     acciones_val = str(row['acciones']).strip()
 
+                    # Actualizar o insertar el registro según corresponda
                     if seguimiento_record:
                         seguimiento_id = seguimiento_record[0]
                         cursor.execute("""
@@ -449,6 +480,7 @@ class DatabaseManager:
                         """, (detalle_id, estado, fecha_envio_val, fecha_recepcion_val, observaciones_val, acciones_val))
                         inserted_count += 1
                     
+                    # Actualizar barra de progreso
                     progress = ((index + 1) / total_rows) * 100
                     progress_callback(progress, Messages.PROCESSING_DOC.format(num_doc))
                     
@@ -457,10 +489,33 @@ class DatabaseManager:
                     errors_count += 1
                     continue
             
+            # Confirmar cambios y cerrar conexión
             conn.commit()
             conn.close()
             
+            # Actualizar estados automáticos después de procesar el archivo
+            # Primero actualizamos estados de pago
+            payment_success, payment_result = self.update_payment_status()
+            
+            # Luego actualizamos estados de facturas con monto cero o negativo
+            zero_neg_success, zero_neg_result = self.update_zero_negative_status()
+            
+            # Generar resumen de la operación
             summary = Messages.SUCCESS_UPDATE.format(updated_count, inserted_count, errors_count)
+            if skipped_paid_count > 0:
+                summary += f"\nRegistros ya pagados omitidos: {skipped_paid_count}"
+                
+            # Añadir resultados de las actualizaciones automáticas
+            if payment_success:
+                summary += f"\n{payment_result}"
+            else:
+                summary += f"\nError al actualizar estados de pago: {payment_result}"
+                
+            if zero_neg_success:
+                summary += f"\n{zero_neg_result}"
+            else:
+                summary += f"\n{zero_neg_result}"
+            
             self.logger.info(summary)
             return True, summary
             
@@ -469,37 +524,58 @@ class DatabaseManager:
             return False, Messages.ERROR_UPDATE.format(str(e_main_seguimiento))
 
     def update_payment_status(self) -> Tuple[bool, str]:
-        """Actualizar automáticamente el estado a 'Pagado' en seguimiento_facturacion si hay info de pago en detalle_atenciones."""
+        """
+        Actualizar automáticamente el estado a 'Pagado' en seguimiento_facturacion si hay info de pago en detalle_atenciones.
+        
+        Esta función busca registros con número de pago válido en detalle_atenciones y actualiza su estado
+        a 'Pagado' en la tabla seguimiento_facturacion. No modifica registros que ya estén marcados como pagados.
+        
+        Returns:
+            Tuple[bool, str]: (Éxito/Fallo, Mensaje descriptivo)
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Obtener registros con información de pago
             cursor.execute(SQLQueries.SELECT_PAID)
             paid_records = cursor.fetchall()
             
             updated_count = 0
             inserted_count = 0
+            skipped_empty_count = 0  # Contador para registros con num_pag vacío
         
             for record in paid_records:
                 detalle_id, num_doc, num_pag, fec_pag = record
                 
-                # Ensure fec_pag is valid, default to today if not
+                # Validar que num_pag no esté vacío (adicional a la consulta SQL)
+                if not num_pag or str(num_pag).strip() == '':
+                    self.logger.info(f"Omitiendo registro con número de pago vacío: {num_doc}")
+                    skipped_empty_count += 1
+                    continue
+                
+                # Asegurar que la fecha de pago sea válida, usar fecha actual si no lo es
                 try:
                     valid_fec_pag = pd.to_datetime(fec_pag).strftime('%Y-%m-%d') if fec_pag else datetime.now().strftime('%Y-%m-%d')
-                except ValueError: # Handle cases where fec_pag might be an invalid date string
+                except ValueError:  # Manejar casos donde fec_pag podría ser una cadena de fecha inválida
                     valid_fec_pag = datetime.now().strftime('%Y-%m-%d')
 
+                # Verificar si ya existe un registro de seguimiento para este documento
                 cursor.execute(SQLQueries.SELECT_BY_ID, (detalle_id,))
                 existing_seguimiento = cursor.fetchone()
 
                 if existing_seguimiento:
                     seguimiento_id = existing_seguimiento[0]
-                    cursor.execute(SQLQueries.SELECT_CURRENT_STATUS, (seguimiento_id,)) # Query was for seguimiento, this is correct
+                    
+                    # Verificar el estado actual del registro
+                    cursor.execute(SQLQueries.SELECT_CURRENT_STATUS, (seguimiento_id,))
                     current_status_result = cursor.fetchone()
                     
+                    # No actualizar si ya está marcado como pagado
                     if current_status_result and current_status_result[0].strip().lower() == Messages.PAID_STATUS.lower():
                         continue 
 
+                    # Actualizar el registro existente con estado 'Pagado'
                     cursor.execute("""
                         UPDATE seguimiento_facturacion 
                         SET estado_aseguradora = ?,
@@ -518,6 +594,7 @@ class DatabaseManager:
                           Messages.DEFAULT_ACTION, seguimiento_id))
                     updated_count += 1
                 else:
+                    # Crear un nuevo registro de seguimiento con estado 'Pagado'
                     cursor.execute("""
                         INSERT INTO seguimiento_facturacion 
                         (detalle_atencion_id, estado_aseguradora, fecha_envio, fecha_recepcion, observaciones, acciones)
@@ -526,14 +603,83 @@ class DatabaseManager:
                           Messages.DEFAULT_OBSERVATION, Messages.DEFAULT_ACTION))
                     inserted_count += 1 
 
+            # Confirmar cambios y cerrar conexión
             conn.commit()
             conn.close()
         
+            # Generar resumen de la operación
             summary = Messages.SUCCESS_PAYMENT.format(updated_count, inserted_count)
+            if skipped_empty_count > 0:
+                summary += f" (Omitidos por número de pago vacío: {skipped_empty_count})"
+                
             self.logger.info(summary)
             return True, summary
         
         except Exception as e_payment:
             self.logger.error(Messages.ERROR_PAYMENT.format(str(e_payment)))
             return False, Messages.ERROR_PAYMENT.format(str(e_payment))
+            
+    def update_zero_negative_status(self) -> Tuple[bool, str]:
+        """Actualizar automáticamente el estado a 'Cero o Negativo' en seguimiento_facturacion si tot_doc es <= 0."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute(SQLQueries.SELECT_ZERO_NEGATIVE)
+            zero_negative_records = cursor.fetchall()
+            
+            updated_count = 0
+            inserted_count = 0
+            current_date = datetime.now().strftime('%Y-%m-%d')
+        
+            for record in zero_negative_records:
+                detalle_id, num_doc, tot_doc = record
+                
+                cursor.execute(SQLQueries.SELECT_BY_ID, (detalle_id,))
+                existing_seguimiento = cursor.fetchone()
 
+                if existing_seguimiento:
+                    seguimiento_id = existing_seguimiento[0]
+                    cursor.execute(SQLQueries.SELECT_CURRENT_STATUS, (seguimiento_id,))
+                    current_status_result = cursor.fetchone()
+                    
+                    # No actualizar si ya tiene estado "Cero o Negativo"
+                    if current_status_result and current_status_result[0].strip().lower() == Messages.ZERO_NEGATIVE_STATUS.lower():
+                        continue 
+
+                    cursor.execute("""
+                        UPDATE seguimiento_facturacion 
+                        SET estado_aseguradora = ?,
+                            observaciones = CASE 
+                                WHEN observaciones = '' OR observaciones IS NULL THEN ?
+                                ELSE observaciones || ' | ' || ?
+                            END,
+                            acciones = CASE 
+                                WHEN acciones = '' OR acciones IS NULL THEN ?
+                                ELSE acciones 
+                            END
+                        WHERE id = ?
+                    """, (Messages.ZERO_NEGATIVE_STATUS, 
+                          Messages.ZERO_NEGATIVE_OBSERVATION, Messages.ZERO_NEGATIVE_OBSERVATION, 
+                          Messages.ZERO_NEGATIVE_ACTION, seguimiento_id))
+                    updated_count += 1
+                else:
+                    cursor.execute("""
+                        INSERT INTO seguimiento_facturacion 
+                        (detalle_atencion_id, estado_aseguradora, fecha_envio, fecha_recepcion, observaciones, acciones)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (detalle_id, Messages.ZERO_NEGATIVE_STATUS, current_date, current_date, 
+                          Messages.ZERO_NEGATIVE_OBSERVATION, Messages.ZERO_NEGATIVE_ACTION))
+                    inserted_count += 1 
+
+            conn.commit()
+            conn.close()
+        
+            summary = f"Estados 'Cero o Negativo' actualizados: {updated_count}, Nuevos registros: {inserted_count}"
+            self.logger.info(summary)
+            return True, summary
+        
+        except Exception as e_zero_neg:
+            error_msg = f"Error al actualizar estados 'Cero o Negativo': {str(e_zero_neg)}"
+            self.logger.error(error_msg)
+            return False, error_msg
