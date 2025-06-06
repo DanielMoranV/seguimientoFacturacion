@@ -89,6 +89,19 @@ class SQLQueries:
         FROM detalle_atenciones 
         WHERE tot_doc <= 0
     """
+    
+    # Consulta para exportar pendientes (sin num_pag y tot_doc > 0)
+    SELECT_PENDING = """
+        SELECT 
+            d.num_doc, d.fec_doc, d.nh_pac, d.nom_pac, d.nom_emp, d.nom_cia,
+            d.tot_doc, d.num_fac, d.fec_fac, d.num_pag, d.fec_pag, d.facturador,
+            s.estado_aseguradora, s.fecha_envio, s.fecha_recepcion, s.observaciones, s.acciones
+        FROM detalle_atenciones d
+        LEFT JOIN seguimiento_facturacion s ON d.id = s.detalle_atencion_id
+        WHERE d.nom_pac != 'No existe...'
+        AND (d.num_pag IS NULL OR d.num_pag = '' OR d.num_pag = 'nan')
+        AND d.tot_doc > 0
+    """
 
 @dataclass
 class ExcelStyles:

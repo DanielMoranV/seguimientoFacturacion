@@ -32,6 +32,28 @@ class ExcelController:
         except Exception as e:
             logger.error(f"Error en handle_excel_export: {str(e)}")
             return False, Messages.ERROR_EXPORT.format(str(e))
+            
+    def handle_pending_export(self, export_path: Path) -> Tuple[bool, str]:
+        """
+        Manejar la exportación de pendientes a Excel
+        (Solo registros sin número de pago y con monto > 0)
+        
+        Args:
+            export_path: Ruta donde se guardará el archivo Excel
+            
+        Returns:
+            Tuple[bool, str]: (éxito, mensaje)
+        """
+        try:
+            success, message = self.db_manager.export_pending_to_excel(export_path)
+            if not success:
+                return False, message
+            
+            return True, message
+            
+        except Exception as e:
+            logger.error(f"Error en handle_pending_export: {str(e)}")
+            return False, Messages.ERROR_EXPORT.format(str(e))
 
     def handle_seguimiento_update_from_excel(self, file_path: Path, progress_callback: callable) -> Tuple[bool, str]:
         try:

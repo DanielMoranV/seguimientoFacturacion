@@ -133,6 +133,34 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error en export_seguimiento_to_excel: {str(e)}")
             return False, Messages.ERROR_EXPORT.format(str(e))
+            
+    def export_pending_to_excel(self, export_path: Path) -> Tuple[bool, str]:
+        """
+        Exportar pendientes a Excel con formato personalizado
+        (Solo registros sin número de pago y con monto > 0)
+        
+        Args:
+            export_path: Ruta donde se guardará el archivo Excel
+            
+        Returns:
+            Tuple[bool, str]: (éxito, mensaje)
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(SQLQueries.SELECT_PENDING, conn)
+            conn.close()
+
+            self.logger.info("Consulta SQL de pendientes ejecutada correctamente")
+            self.logger.info(df.head()) # Log head instead of full df for brevity
+            
+            total_rows = len(df)
+            self.logger.info(f"Total de registros pendientes para exportar: {total_rows}")
+            
+            return self._format_excel(df, export_path)
+            
+        except Exception as e:
+            self.logger.error(f"Error en export_pending_to_excel: {str(e)}")
+            return False, Messages.ERROR_EXPORT.format(str(e))
     
     def _format_excel(self, df: pd.DataFrame, export_path: Path) -> Tuple[bool, str]:
         """Aplicar formato al Excel"""

@@ -93,7 +93,7 @@ class MainView:
         self.button_frame = ctk.CTkFrame(self.main_frame)
         self.button_frame.pack(fill="x", padx=30, pady=(0, 20))
         self.button_frame.columnconfigure((0, 1, 2, 3), weight=1, uniform="a")
-        self.button_frame.rowconfigure(0, weight=1)
+        self.button_frame.rowconfigure((0, 1), weight=1)
 
         self.import_primary_button = ctk.CTkButton(
             self.button_frame,
@@ -137,6 +137,18 @@ class MainView:
             command=self.confirm_clear_database
         )
         self.clear_db_button.grid(row=0, column=3, padx=10, pady=10, sticky="ew")
+        
+        # Botón de exportar pendientes (segunda fila)
+        self.export_pending_button = ctk.CTkButton(
+            self.button_frame,
+            text="📋 Exportar Pendientes",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            height=45,
+            fg_color="#8B4513", # Marrón
+            hover_color="#654321", # Marrón oscuro
+            command=self.export_pending_data
+        )
+        self.export_pending_button.grid(row=1, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
 
         # Stats Frame
         self.stats_frame = ctk.CTkFrame(self.main_frame, height=80)
@@ -205,6 +217,22 @@ class MainView:
         self._start_task(
             lambda: self.controller.handle_excel_export(Path(export_path)),
             "export_complete"
+        )
+        
+    def export_pending_data(self):
+        export_path = filedialog.asksaveasfilename(
+            title="Guardar archivo Excel de pendientes",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
+        )
+        if not export_path:
+            return
+            
+        self._disable_buttons()
+        self.progress_status_label.configure(text="Exportando datos pendientes...")
+        self._start_task(
+            lambda: self.controller.handle_pending_export(Path(export_path)),
+            "export_pending_complete"
         )
 
     def confirm_clear_database(self):
@@ -286,6 +314,7 @@ class MainView:
         self.import_primary_button.configure(state="disabled")
         self.update_seguimiento_button.configure(state="disabled")
         self.export_data_button.configure(state="disabled")
+        self.export_pending_button.configure(state="disabled")
         self.clear_db_button.configure(state="disabled")
 
     def _enable_buttons(self):
@@ -298,4 +327,5 @@ class MainView:
             self.import_primary_button.configure(state="disabled")
         self.update_seguimiento_button.configure(state="normal")
         self.export_data_button.configure(state="normal")
+        self.export_pending_button.configure(state="normal")
         self.clear_db_button.configure(state="normal")
